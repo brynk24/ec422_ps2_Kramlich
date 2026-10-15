@@ -1,0 +1,189 @@
+---
+title: "Problem Set 2"
+author: "Bryn Kramlich"
+date: today
+format:
+  html:
+    toc: true
+    embed-resources: true
+---
+
+## Data
+The data conists of seonally adjusted unemployment rates for the United States and its regions from the United States, Oregon, California, Texas and New York beggining in 1976. The data was obtained from the Federal Reserve Economic Data database.
+
+```{r}
+library(tidyverse)
+library(tidyquant)
+
+unemp_raw <- read_rds("data/unemp_raw.rds")
+
+head(unemp_raw)
+```
+
+## Wrangling
+```{r}
+unemp <- unemp_raw |>
+  rename(unemployment_rate = price) |>
+  mutate(
+    region = case_when(
+      symbol == "UNRATE" ~ "United States",
+      symbol == "ORUR" ~ "Oregon",
+      symbol == "CAUR" ~ "California",
+      symbol == "TXUR" ~ "Texas",
+      symbol == "NYUR" ~ "New York"
+    )
+  ) |>
+  arrange(region, date) |>
+  group_by(region) |>
+  mutate(
+    unemployment_rate_change =
+      unemployment_rate - lag(unemployment_rate)
+  ) |>
+  ungroup()
+
+unemp_recent <- unemp |>
+  filter(date >= as.Date("2015-01-01"))
+
+unemp_summary <- unemp |>
+  group_by(region) |>
+  summarize(
+    mean_rate = mean(unemployment_rate, na.rm = TRUE),
+    min_rate = min(unemployment_rate, na.rm = TRUE),
+    max_rate = max(unemployment_rate, na.rm = TRUE)
+  )
+
+unemp_recent_summary <- unemp_recent |>
+  group_by(region) |>
+  summarize(
+    mean_rate = mean(unemployment_rate, na.rm = TRUE),
+    min_rate = min(unemployment_rate, na.rm = TRUE),
+    max_rate = max(unemployment_rate, na.rm = TRUE)
+  )
+
+unemp_top_increases_no_covid <- unemp |>
+  filter(year(date) != 2020) |>
+  slice_max(
+    order_by = unemployment_rate_change,
+    n = 5
+  )
+
+unemp_top_decreases_no_covid <- unemp |>
+  filter(year(date) != 2020) |>
+  slice_min(
+    order_by = unemployment_rate_change,
+    n = 5
+  )
+```
+
+### Full Sample Summary
+
+This table shows the mean, minimum, and maximum unemployment rate for each region over the full sample.
+
+```{r}
+knitr::kable(
+  unemp_summary,
+  digits = 2,
+  caption = "Unemployment Rate Summary by Region"
+)
+```
+
+### Recent Sample Summary
+
+This table shows the mean, minimum, and maximum unemployment rates for each region from January 2015 onward.
+
+```{r}
+knitr::kable(
+  unemp_recent_summary,
+  digits = 2,
+  caption = "Unemployment Rate Summary Since 2015"
+)
+```
+
+### Largest Increases Excluding 2020
+
+This table shows the largest month-to-month increases in unemployment rates after excluding observations from 2020.
+
+```{r}
+knitr::kable(
+  unemp_top_increases_no_covid,
+  digits = 2,
+  caption = "Largest Monthly Unemployment Rate Increases Excluding 2020"
+)
+```
+
+### Largest Decreases Excluding 2020
+
+This table shows the largest month-to-month decreases in unemployment rates after excluding observations from 2020.
+
+```{r}
+knitr::kable(
+  unemp_top_decreases_no_covid,
+  digits = 2,
+  caption = "Largest Monthly Unemployment Rate Decreases Excluding 2020"
+  )
+```
+
+## Visualization
+
+The following figure shows unemployment rates over time for the United States and the four states in the dataset.
+
+```{r}
+ggplot(unemp, aes(x = date, y = unemployment_rate, color = region)) +
+  geom_line() +
+  labs(
+    title = "Unemployment Rates by Region",
+    x = "Date",
+    y = "Unemployment Rate (%)",
+    color = "Region"
+  ) +
+  theme_minimal()
+```
+
+The same unemployment rate data is separated into individual panels below, making it easier to examine trends within each region.
+
+```{r}
+ggplot(unemp, aes(x = date, y = unemployment_rate)) +
+  geom_line() +
+  facet_wrap(~ region) +
+  labs(
+    title = "Unemployment Rates by Region",
+    x = "Date",
+    y = "Unemployment Rate (%)"
+  ) +
+  theme_minimal()
+```
+
+The following bar chart compares the average unemployment rate across regions over the full sample, ordered from lowest to highest.
+
+```{r}
+ggplot(
+  unemp_summary,
+  aes(x = fct_reorder(region, mean_rate), y = mean_rate)
+) +
+  geom_col() +
+  labs(
+    title = "Average Unemployment Rate by Region",
+    x = "Region",
+    y = "Mean Unemployment Rate (%)"
+  ) +
+  theme_minimal()
+```
+I plotted the month-to-month change in the U.S. unemployment rate since 2015 to examine periods of unusual labor market volatility. the Graph shows a spike in relation to the COVID-19 pandemic in 2020, which is the largest increase in unemployment rate over the entire sample. 
+
+```{r}
+
+ggplot(
+  unemp_recent |> filter(region == "United States"),
+  aes(x = date, y = unemployment_rate_change)
+) +
+  geom_col() +
+  labs(
+    title = "Monthly Changes in U.S. Unemployment Rate Since 2015",
+    x = "Date",
+    y = "Monthly Change in Unemployment Rate"
+  ) +
+  theme_minimal()
+```
+
+## Reflection
+Overall I found this assignment and the data visualization portion of the assignment fun and straighforward once I got the hang of it. I got tripped up on the order in which things needed to be done within r studios, specifically running each code chunk before moving forward. I am getting much more comfortable codeing with the help of github copilot, I understand what they are trying to do however I have noticed many times that it trys to jump the gun and incoporate code that is not useful or straight up incorrect. I enjoy r studios alot more now that I have a better understanding of how to use it and the different packages that are available. I am looking forward to learning more about data visualization and how to use it to tell a story with data.
